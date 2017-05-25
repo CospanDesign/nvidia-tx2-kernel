@@ -762,7 +762,9 @@ int camera_common_parse_sensor_mode(struct i2c_client *client,
 	for (i = 0; num_modes < MAX_NUM_SENSOR_MODES; i++) {
 		snprintf(temp_str, sizeof(temp_str), "%s%d",
 			OF_SENSORMODE_PREFIX, i);
-		node = of_find_node_by_name(np, temp_str);
+		of_node_get(np);
+		node = of_get_child_by_name(np, temp_str);
+		of_node_put(node);
 		if (node == NULL)
 			break;
 		num_modes++;
@@ -782,33 +784,39 @@ int camera_common_parse_sensor_mode(struct i2c_client *client,
 	for (i = 0; i < num_modes; i++) {
 		snprintf(temp_str, sizeof(temp_str), "%s%d",
 			OF_SENSORMODE_PREFIX, i);
-		node = of_find_node_by_name(np, temp_str);
+		of_node_get(np);
+		node = of_get_child_by_name(np, temp_str);
 		if (node == NULL) {
 			dev_err(&client->dev, "Failed to find mode\n");
-			return -ENODATA;
+			err = -ENODATA;
+			goto fail;
 		};
 
 		/* read mode width */
 		of_property_read_string(node, "active_w", &str);
 		if (str == NULL) {
 			dev_err(&client->dev, "Failed to read mode width\n");
-			return -ENODATA;
+			err = -ENODATA;
+			goto fail;
 		};
 		err = kstrtoint(str, 10, &pdata->mode_info[i].width);
 		if (err) {
 			dev_err(&client->dev, "Failed to convert mode width\n");
-			return -EFAULT;
+			err = -EFAULT;
+			goto fail;
 		}
 		/* read mode height */
 		of_property_read_string(node, "active_h", &str);
 		if (str == NULL) {
 			dev_err(&client->dev, "Failed to read mode height\n");
-			return -ENODATA;
+			err = -ENODATA;
+			goto fail;
 		};
 		err = kstrtoint(str, 10, &pdata->mode_info[i].height);
 		if (err) {
 			dev_err(&client->dev, "Failed to convert mode height\n");
-			return -EFAULT;
+			err = -EFAULT;
+			goto fail;
 		}
 		dev_info(&client->dev, "%s: mode %d x %d:\n", __func__,
 			pdata->mode_info[i].width, pdata->mode_info[i].height);
@@ -816,29 +824,38 @@ int camera_common_parse_sensor_mode(struct i2c_client *client,
 		of_property_read_string(node, "line_length", &str);
 		if (str == NULL) {
 			dev_err(&client->dev, "Failed to read mode line_length\n");
-			return -ENODATA;
+			err = -ENODATA;
+			goto fail;
 		};
 		err = kstrtoint(str, 10, &pdata->mode_info[i].line_length);
 		if (err) {
 			dev_err(&client->dev, "Failed to convert mode line_length\n");
-			return -EFAULT;
+			err = -EFAULT;
+			goto fail;
 		}
 
 		of_property_read_string(node, "pix_clk_hz", &str);
 		if (str == NULL) {
 			dev_err(&client->dev, "Failed to read mode pix_clk_hz\n");
-			return -ENODATA;
+			err = -ENODATA;
+			goto fail;
 		};
 		err = kstrtoll(str, 10, &pdata->mode_info[i].pixel_clock);
 		if (err) {
 			dev_err(&client->dev, "Failed to convert mode pix_clk_hz\n");
-			return -EFAULT;
+			err = -EFAULT;
+			goto fail;
 		}
 		dev_info(&client->dev, "%s: line_length = %d, pixel_clock = %llu\n",
 			__func__, pdata->mode_info[i].line_length,
 			pdata->mode_info[i].pixel_clock);
+		of_node_put(node);
 	}
 
 	return 0;
+
+fail:
+	of_node_put(node);
+	return err;
 }
 EXPORT_SYMBOL(camera_common_parse_sensor_mode);
